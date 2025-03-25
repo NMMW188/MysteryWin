@@ -1,58 +1,224 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Scratch & Win Game</title>
+    <title>Premium Scratch & Win</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
             text-align: center;
-            margin-top: 50px;
-            background-color: #f0f8ff;
         }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #ff6b00;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+        
+        .scratch-container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        
         #scratch-card {
-            width: 300px;
-            height: 200px;
-            margin: 20px auto;
-            background: linear-gradient(45deg, #ff6b00, #ffa502);
+            width: 100%;
+            max-width: 500px;
+            height: 300px;
+            margin: 0 auto;
             position: relative;
+            background: linear-gradient(45deg, #ff9a9e 0%, #fad0c4 99%, #fad0c4 100%);
             border-radius: 10px;
+            overflow: hidden;
         }
-        #scratch-area {
+        
+        #scratch-overlay {
+            position: absolute;
             width: 100%;
             height: 100%;
-            position: absolute;
-            background-color: #ddd;
-            cursor: pointer;
+            background: #333 url('https://www.transparenttextures.com/patterns/black-linen.png');
+            cursor: grab;
         }
+        
         #result {
-            padding-top: 80px;
-            font-size: 24px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 28px;
+            font-weight: bold;
+            color: #ff6b00;
+            text-shadow: 1px 1px 3px white;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+        
+        .tools {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .tool-btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            background: #4CAF50;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .tool-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 10px rgba(0,0,0,0.2);
+        }
+        
+        .tool-btn.active {
+            background: #ff6b00;
+            transform: translateY(-2px);
+        }
+        
+        .credits {
+            margin-top: 20px;
+            font-size: 18px;
             font-weight: bold;
         }
     </style>
 </head>
 <body>
-    <h1>Scratch & Win Game</h1>
-    <div id="scratch-card">
-        <div id="result">Scratch to reveal!</div>
-        <div id="scratch-area"></div>
+    <div class="container">
+        <h1>Scratch & Win Game</h1>
+        
+        <div class="scratch-container">
+            <div class="tools">
+                <button class="tool-btn active" data-size="20">🎨 Brush</button>
+                <button class="tool-btn" data-size="40">🧽 Sponge</button>
+                <button class="tool-btn" data-size="80">🧹 Broom</button>
+            </div>
+            
+            <div id="scratch-card">
+                <div id="result">Scratch to reveal!</div>
+                <canvas id="scratch-overlay"></canvas>
+            </div>
+            
+            <div class="credits">Credits: 10</div>
+        </div>
     </div>
 
     <script>
-        const scratchArea = document.getElementById('scratch-area');
-        let isScratched = false;
-
-        scratchArea.addEventListener('mousemove', function(e) {
-            if (!isScratched) {
-                this.style.opacity = '0.5';
-                setTimeout(() => {
-                    this.style.display = 'none';
-                    isScratched = true;
-                    document.getElementById('result').textContent = 
-                        Math.random() > 0.7 ? "You won 5 credits!" : "Try again!";
-                }, 1000);
-            }
+        // Canvas setup
+        const canvas = document.getElementById('scratch-overlay');
+        const ctx = canvas.getContext('2d');
+        const resultDiv = document.getElementById('result');
+        let isDrawing = false;
+        let currentToolSize = 20;
+        
+        // Set canvas size
+        function initCanvas() {
+            const card = document.getElementById('scratch-card');
+            canvas.width = card.offsetWidth;
+            canvas.height = card.offsetHeight;
+            
+            // Fill canvas with gray overlay
+            ctx.fillStyle = '#333';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.globalCompositeOperation = 'destination-out';
+        }
+        
+        // Tool selection
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                currentToolSize = parseInt(this.dataset.size);
+            });
         });
+        
+        // Scratch mechanics
+        canvas.addEventListener('mousedown', startScratching);
+        canvas.addEventListener('touchstart', startScratching);
+        
+        canvas.addEventListener('mousemove', scratch);
+        canvas.addEventListener('touchmove', scratch);
+        
+        canvas.addEventListener('mouseup', stopScratching);
+        canvas.addEventListener('touchend', stopScratching);
+        
+        function startScratching(e) {
+            isDrawing = true;
+            scratch(e);
+        }
+        
+        function scratch(e) {
+            if (!isDrawing) return;
+            
+            // Get position
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX || e.touches[0].clientX) - rect.left;
+            const y = (e.clientY || e.touches[0].clientY) - rect.top;
+            
+            // Draw circle at position
+            ctx.beginPath();
+            ctx.arc(x, y, currentToolSize, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Check if enough is scratched
+            checkScratched();
+        }
+        
+        function stopScratching() {
+            isDrawing = false;
+        }
+        
+        function checkScratched() {
+            // Count transparent pixels
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const pixels = imageData.data;
+            let transparent = 0;
+            
+            for (let i = 3; i < pixels.length; i += 4) {
+                if (pixels[i] === 0) transparent++;
+            }
+            
+            const scratchedPercent = (transparent / (pixels.length / 4)) * 100;
+            
+            // If 30% scratched, reveal result
+            if (scratchedPercent > 30 && resultDiv.style.opacity !== '1') {
+                revealResult();
+            }
+        }
+        
+        function revealResult() {
+            // Random prize (70% chance to win)
+            const isWinner = Math.random() > 0.3;
+            const prizes = [5, 10, 20, 50];
+            const prize = isWinner ? prizes[Math.floor(Math.random() * prizes.length)] : 0;
+            
+            resultDiv.textContent = isWinner 
+                ? `You won ${prize} credits! 🎉` 
+                : "Try again! 😊";
+            resultDiv.style.opacity = '1';
+            
+            // Disable scratching
+            canvas.style.cursor = 'default';
+            isDrawing = false;
+        }
+        
+        // Initialize on window load
+        window.addEventListener('load', initCanvas);
+        window.addEventListener('resize', initCanvas);
     </script>
 </body>
 </html>
