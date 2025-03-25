@@ -1,74 +1,199 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Simple Scratch Card</title>
+    <title>Scratch Card - 50% to Win</title>
     <style>
-        body { text-align: center; font-family: Arial; }
-        #scratch-card { 
-            width: 300px; 
-            height: 200px; 
-            margin: 20px auto; 
-            background: gold; 
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background: #f0f8ff;
+            padding: 20px;
+        }
+        .game-container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #ff6b00;
+        }
+        .scratch-area {
+            width: 100%;
+            height: 300px;
+            margin: 20px auto;
             position: relative;
+            background: linear-gradient(45deg, #ff9a9e, #fad0c4);
+            border-radius: 10px;
+            overflow: hidden;
         }
-        #scratch-area { 
-            width: 100%; 
-            height: 100%; 
-            background: silver; 
-            cursor: crosshair;
+        #result {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            font-weight: bold;
+            color: #d35400;
+            text-shadow: 1px 1px 3px white;
+            opacity: 0;
+            transition: opacity 0.5s;
+            pointer-events: none;
+            width: 80%;
+            text-align: center;
         }
-        .tool-btn {
-            padding: 8px 15px;
-            margin: 5px;
+        #scratch-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        .credits {
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px 20px;
             background: #4CAF50;
             color: white;
             border: none;
             border-radius: 5px;
+            margin-top: 20px;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
-    <h1>Scratch Card</h1>
-    
-    <div>
-        <button class="tool-btn">Brush</button>
-        <button class="tool-btn">Sponge</button>
-        <button class="tool-btn">Broom</button>
+    <div class="game-container">
+        <h1>Scratch & Win</h1>
+        
+        <div class="scratch-area">
+            <div id="result">You won 10 credits!</div>
+            <canvas id="scratch-canvas"></canvas>
+        </div>
+        
+        <div class="credits">Credits: 5</div>
+        <button id="reset-btn">New Card</button>
     </div>
-    
-    <div id="scratch-card">
-        <div id="result">Scratch to win!</div>
-        <div id="scratch-area"></div>
-    </div>
-    
-    <p>Credits: 10</p>
 
     <script>
-        const scratchArea = document.getElementById('scratch-area');
+        // Initialize canvas
+        const canvas = document.getElementById('scratch-canvas');
+        const ctx = canvas.getContext('2d');
+        const result = document.getElementById('result');
+        const resetBtn = document.getElementById('reset-btn');
         let isScratching = false;
         
-        scratchArea.addEventListener('mousedown', () => isScratching = true);
-        scratchArea.addEventListener('mouseup', () => isScratching = false);
+        // Set canvas size
+        function initCanvas() {
+            const container = document.querySelector('.scratch-area');
+            canvas.width = container.offsetWidth;
+            canvas.height = container.offsetHeight;
+            
+            // Create silver scratch surface
+            ctx.fillStyle = '#c0c0c0';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // This makes scratching create transparency
+            ctx.globalCompositeOperation = 'destination-out';
+            
+            // Set line properties for smooth scratching
+            ctx.lineWidth = 25;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            
+            // Hide result initially
+            result.style.opacity = '0';
+            canvas.style.pointerEvents = 'auto';
+        }
         
-        scratchArea.addEventListener('mousemove', (e) => {
-            if (isScratching) {
-                const circle = document.createElement('div');
-                circle.style.position = 'absolute';
-                circle.style.left = (e.clientX - scratchArea.getBoundingClientRect().left - 15) + 'px';
-                circle.style.top = (e.clientY - scratchArea.getBoundingClientRect().top - 15) + 'px';
-                circle.style.width = '30px';
-                circle.style.height = '30px';
-                circle.style.backgroundColor = 'transparent';
-                circle.style.borderRadius = '50%';
-                circle.style.pointerEvents = 'none';
-                scratchArea.appendChild(circle);
-                
-                // Check if enough is scratched
-                if (Math.random() > 0.7) {
-                    document.getElementById('result').textContent = "You won!";
+        // Event listeners
+        canvas.addEventListener('mousedown', startScratch);
+        canvas.addEventListener('mousemove', scratch);
+        canvas.addEventListener('mouseup', endScratch);
+        canvas.addEventListener('mouseleave', endScratch);
+        
+        // Touch support for mobile
+        canvas.addEventListener('touchstart', handleTouch);
+        canvas.addEventListener('touchmove', handleTouch);
+        canvas.addEventListener('touchend', endScratch);
+        
+        function startScratch(e) {
+            isScratching = true;
+            const pos = getPosition(e);
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y);
+            e.preventDefault();
+        }
+        
+        function scratch(e) {
+            if (!isScratching) return;
+            
+            const pos = getPosition(e);
+            ctx.lineTo(pos.x, pos.y);
+            ctx.stroke();
+            
+            checkCompletion();
+            e.preventDefault();
+        }
+        
+        function handleTouch(e) {
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent(
+                e.type === 'touchstart' ? 'mousedown' : 'mousemove',
+                {
+                    clientX: touch.clientX,
+                    clientY: touch.clientY
+                }
+            );
+            canvas.dispatchEvent(mouseEvent);
+            e.preventDefault();
+        }
+        
+        function endScratch() {
+            isScratching = false;
+        }
+        
+        function getPosition(e) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: (e.clientX || e.touches[0].clientX) - rect.left,
+                y: (e.clientY || e.touches[0].clientY) - rect.top
+            };
+        }
+        
+        function checkCompletion() {
+            // Check every 10th pixel for performance
+            const step = 10;
+            let transparentCount = 0;
+            const totalPixels = (canvas.width/step) * (canvas.height/step);
+            
+            for (let x = 0; x < canvas.width; x += step) {
+                for (let y = 0; y < canvas.height; y += step) {
+                    const pixel = ctx.getImageData(x, y, 1, 1).data;
+                    if (pixel[3] === 0) transparentCount++;
                 }
             }
-        });
+            
+            const percentScratched = (transparentCount / totalPixels) * 100;
+            
+            // Reveal if 50% scratched
+            if (percentScratched > 50 && result.style.opacity !== '1') {
+                result.style.opacity = '1';
+                canvas.style.pointerEvents = 'none';
+            }
+        }
+        
+        resetBtn.addEventListener('click', initCanvas);
+        
+        // Initialize on load
+        window.addEventListener('load', initCanvas);
+        window.addEventListener('resize', initCanvas);
     </script>
 </body>
 </html>
